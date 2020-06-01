@@ -25,7 +25,7 @@ public class ServicerProcessor extends AbstractProcessor {
     private Elements elementUtils;
     private Filer filer;
     private Messager messager;
-    private Map<String, Set<String>> services = Collections.synchronizedMap(new HashMap<>());
+    private Map<String, Services> services = Collections.synchronizedMap(new HashMap<>());
 
     public ServicerProcessor() {} // Required
 
@@ -54,9 +54,7 @@ public class ServicerProcessor extends AbstractProcessor {
                     } catch (MirroredTypeException e) {
     		            serviceName = e.getTypeMirror().toString(); //Yeah, apparently this is the solution you're supposed to use
                     }
-    		        if (!services.containsKey(serviceName))
-    		            services.put(serviceName, new HashSet<>());
-    		        services.get(serviceName).add(annotated.asType().toString());
+    		        services.computeIfAbsent(serviceName, name -> new Services()).add(annotated);
                 }
             }
         }
@@ -66,7 +64,7 @@ public class ServicerProcessor extends AbstractProcessor {
         if (!roundEnv.processingOver())  // Only process at end
             return true;
 
-        services.forEach((k, v) -> {
+        services.forEach((k, s) -> {
             String serviceLocation = "META-INF/services" + "/" + k;
 
             List<String> oldServices = new ArrayList<>();
@@ -94,12 +92,12 @@ public class ServicerProcessor extends AbstractProcessor {
             }
 
             try {
-                FileObject fo = filer.createResource(StandardLocation.CLASS_OUTPUT, "", serviceLocation);
+                FileObject fo = filer.createResource(StandardLocation.CLASS_OUTPUT, "", serviceLocation, s.getElements());
                 try (OutputStreamWriter w = new OutputStreamWriter(fo.openOutputStream())) {
                     for (String oldService : oldServices) {
                         w.append(oldService).append("\n");
                     }
-                    for (String impl : v) {
+                    for (String impl : s.getImpls()) {
                         messager.printMessage(Diagnostic.Kind.NOTE, "Setting up " + impl + " for use as a " + k + " implementation!\n");
                         w.append(impl).append("\n");
                     }
@@ -114,5 +112,23 @@ public class ServicerProcessor extends AbstractProcessor {
     @Override
     public SourceVersion getSupportedSourceVersion() {
         return super.getSupportedSourceVersion();
+    }
+
+    private static class Services {
+        private final Set<String> impls = new HashSet<>();
+        private final Set<Element> elements = new HashSet<>();
+
+        void add(Element annotated) {
+            impls.add(annotated.asType().toString());
+            elements.add(annotated);
+        }
+
+        Collection<String> getImpls() {
+            return impls;
+        }
+
+        Element[] getElements() {
+            return elements.toArray(new Element[0]);
+        }
     }
 }
