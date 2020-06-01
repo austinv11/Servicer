@@ -22,18 +22,19 @@ import java.util.*;
 public class ServicerProcessor extends AbstractProcessor {
 
     private Types typeUtils;
-    private Elements elementUtils;
+    private Elements elements;
     private Filer filer;
     private Messager messager;
     private Map<String, Services> services = Collections.synchronizedMap(new HashMap<>());
 
-    public ServicerProcessor() {} // Required
+    public ServicerProcessor() {
+    } // Required
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         typeUtils = processingEnv.getTypeUtils();
-        elementUtils = processingEnv.getElementUtils();
+        elements = processingEnv.getElementUtils();
         filer = processingEnv.getFiler();
         messager = processingEnv.getMessager();
     }
@@ -46,15 +47,15 @@ public class ServicerProcessor extends AbstractProcessor {
         //Handle @WireService
         for (Element annotated : roundEnv.getElementsAnnotatedWith(WireService.class)) {
             if (annotated.getKind() == ElementKind.CLASS) {
-    		    WireService[] serviceAnnotations = annotated.getAnnotationsByType(WireService.class);
-    		    for (WireService service : serviceAnnotations) {
-    		        String serviceName;
-    		        try {
-    		            serviceName = service.value().getCanonicalName();
+                WireService[] serviceAnnotations = annotated.getAnnotationsByType(WireService.class);
+                for (WireService service : serviceAnnotations) {
+                    String serviceName;
+                    try {
+                        serviceName = service.value().getCanonicalName();
                     } catch (MirroredTypeException e) {
-    		            serviceName = e.getTypeMirror().toString(); //Yeah, apparently this is the solution you're supposed to use
+                        serviceName = e.getTypeMirror().toString(); //Yeah, apparently this is the solution you're supposed to use
                     }
-    		        services.computeIfAbsent(serviceName, name -> new Services()).add(annotated);
+                    services.computeIfAbsent(serviceName, name -> new Services()).add(annotated);
                 }
             }
         }
@@ -92,7 +93,7 @@ public class ServicerProcessor extends AbstractProcessor {
             }
 
             try {
-                FileObject fo = filer.createResource(StandardLocation.CLASS_OUTPUT, "", serviceLocation, s.getElements());
+                FileObject fo = filer.createResource(StandardLocation.CLASS_OUTPUT, "", serviceLocation, s.getElements(elements));
                 try (OutputStreamWriter w = new OutputStreamWriter(fo.openOutputStream())) {
                     for (String oldService : oldServices) {
                         w.append(oldService).append("\n");
@@ -116,19 +117,17 @@ public class ServicerProcessor extends AbstractProcessor {
 
     private static class Services {
         private final Set<String> impls = new HashSet<>();
-        private final Set<Element> elements = new HashSet<>();
 
         void add(Element annotated) {
             impls.add(annotated.asType().toString());
-            elements.add(annotated);
         }
 
         Collection<String> getImpls() {
             return impls;
         }
 
-        Element[] getElements() {
-            return elements.toArray(new Element[0]);
+        Element[] getElements(Elements elements) {
+            return impls.stream().map(elements::getTypeElement).toArray(Element[]::new);
         }
     }
 }
