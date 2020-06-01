@@ -25,7 +25,7 @@ public class ServicerProcessor extends AbstractProcessor {
     private Elements elements;
     private Filer filer;
     private Messager messager;
-    private Map<String, Services> services = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, Services> services = new HashMap<>();
 
     public ServicerProcessor() {
     } // Required
@@ -40,7 +40,7 @@ public class ServicerProcessor extends AbstractProcessor {
     }
 
     @Override
-    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    public synchronized boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (roundEnv.errorRaised())
             return false;
 
